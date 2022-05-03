@@ -1,70 +1,51 @@
-#include <stdlib.h>
 #include "main.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
+
+#define MAXSIZE 1204
+#define SE STDERR_FILENO
 
 /**
- * main - program that copies the content of a file to another file
- *
- * @argc: Counts the number of parameters that go into main
- * @argv: Pointer of array of pointers containing strings entering main
- * Return: Always 0 on (Success)
- *
- * if the number of argument is not the correct one, exit with code 97
- * and print Usage: cp file_from file_to, followed by a new line,
- * on the POSIX standard error
- *
- * if file_from does not exist, or if you can not read it, exit with
- * code 98 and print Error: Can't read from file NAME_OF_THE_FILE,
- * followed by a new line, on the POSIX standard error
- *
- * if you can not close a file descriptor ,
- * exit with code 100 and print Error:
- * Can't close fd FD_VALUE, followed by a new line,
- * on the POSIX standard error
+ * main - create the copy bash script
+ * @ac: argument count
+ * @av: arguments as strings
+ * Return: 0
  */
-int main(int argc, char **argv)
+int main(int ac, char *av[])
 {
-	int fdfrom, fdto, checkr, checkw, checkc1, checkc2;
-	char buff[1024];
+	int input_fd, output_fd, istatus, ostatus;
+	char buf[MAXSIZE];
+	mode_t mode;
 
-	if (argc != 3)
-		dprintf(STDERR_FILENO, "Usage: cp file_from file_to\n"), exit(97);
+	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+	if (ac != 3)
+		dprintf(SE, "Usage: cp file_from file_to\n"), exit(97);
+	input_fd = open(av[1], O_RDONLY);
+	if (input_fd == -1)
+		dprintf(SE, "Error: Can't read from file %s\n", av[1]), exit(98);
+	output_fd = open(av[2], O_CREAT | O_WRONLY | O_TRUNC, mode);
+	if (output_fd == -1)
+		dprintf(SE, "Error: Can't write to %s\n", av[2]), exit(99);
 
-	fdfrom = open(argv[1], O_RDONLY);
-	if (fdfrom == -1)
-	{
-		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", argv[1]);
-		exit(98);
-	}
-
-	fdto = open(argv[2], O_CREAT | O_WRONLY | O_TRUNC, 0664);
-	if (fdto == -1)
-		dprintf(STDERR_FILENO, "Error: Can't write to %s\n", argv[2]), exit(99);
-
-
-	while ((checkr = read(fdfrom, buff, 1024)) > 0)
-	{
-		checkw = write(fdto, buff, checkr);
-		if (checkw != checkr)
+	do {
+		istatus = read(input_fd, buf, MAXSIZE);
+		if (istatus == -1)
 		{
-			dprintf(STDERR_FILENO, "Error: Can't write to %s\n", argv[2]);
-			exit(99);
+			dprintf(SE, "Error: Can't read from file %s\n", av[1]);
+			exit(98);
 		}
-	}
-	if (checkr == -1)
-	{
-		dprintf(STDERR_FILENO, "Error: Can't read from file %s\n", argv[1]);
-		exit(98);
-	}
-	checkc1 = close(fdfrom);
-	if (checkc1 == -1)
-		dprintf(STDERR_FILENO, "Error: Can't close fd %d\n", fdfrom), exit(100);
-	checkc2 = close(fdto);
-	if (checkc2 == -1)
-		dprintf(STDERR_FILENO, "Error: Can't close fd %d\n", fdto), exit(100);
+		if (istatus > 0)
+		{
+			ostatus = write(output_fd, buf, (ssize_t) istatus);
+			if (ostatus == -1)
+				dprintf(SE, "Error: Can't write to %s\n", av[2]), exit(99);
+		}
+	} while (istatus > 0);
+
+	istatus = close(input_fd);
+	if (istatus == -1)
+		dprintf(SE, "Error: Can't close fd %d\n", input_fd), exit(100);
+	ostatus = close(output_fd);
+	if (ostatus == -1)
+		dprintf(SE, "Error: Can't close fd %d\n", output_fd), exit(100);
 
 	return (0);
 }
